@@ -178,6 +178,15 @@ model = WhisperModel("large-v3", device="cuda", compute_type="float16")
 
 ---
 
+## 更新到最新版本
+
+```bash
+cd korean-subtitle-gen
+git pull
+```
+
+---
+
 ## 常见问题
 
 **Q：点按钮没反应 / 一直转圈**
