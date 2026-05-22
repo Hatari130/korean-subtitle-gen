@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.srt
+*.vtt
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.mkv
+*.avi
+*.mov
+*.webm
+.env
