@@ -1,13 +1,20 @@
-# 韩文视频双语字幕生成器
+# 口播音频生成 Studio
 
-上传视频 / 音频 / 粘贴链接，自动生成「韩文 + 中文」双语 SRT 字幕文件，并在浏览器中实时预览。
+上传视频 / 音频 / 粘贴链接，自动识别原文 → 翻译为中文 → 生成双语 SRT 字幕文件，并在浏览器中实时预览。
+
+---
+
+## 功能概览
+
+| 功能 | 说明 |
+|------|------|
+| 🎬 生成字幕 | 视频链接 / 本地视频 / 音频 → 双语 SRT + 词级时间戳 JSON |
+| ✂️ 智能断句 | 用 AI 将长句重新断成短视频字幕节奏，配中文翻译 |
+| ⚡ 合并 SRT | 将 AI 重断的双语文本与词级时间戳精确对齐，生成新 SRT |
 
 ---
 
 ## 效果预览
-
-- 输入：韩文视频（本地文件 / TikTok / YouTube 等链接）
-- 输出：字幕烧录预览视频 + 可下载的 `.srt` 双语字幕文件
 
 ```
 1
@@ -50,29 +57,18 @@ brew install git
 ### Windows
 
 1. 打开 https://www.python.org/downloads/
-2. 点击 **Download Python 3.x.x**，下载安装包
+2. 点击 **Download Python 3.x.x**
 3. 安装时勾选 ✅ **Add Python to PATH**（重要！）
-4. 一路点 Next 完成安装
 
 ### Mac
-
-打开终端（Terminal），执行：
 
 ```bash
 brew install python
 ```
 
-没有 Homebrew？先执行：
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
 ---
 
 ## 三、安装 FFmpeg
-
-FFmpeg 用于把字幕烧录进预览视频。
 
 ### Windows
 
@@ -93,12 +89,9 @@ brew install ffmpeg
 ## 四、下载项目 & 安装依赖
 
 ```bash
-# 克隆项目
 git clone https://github.com/lizaicheng/korean-subtitle-gen.git
 cd korean-subtitle-gen
-
-# 安装 Python 依赖
-pip install faster-whisper deep-translator gradio yt-dlp
+pip install faster-whisper deep-translator gradio yt-dlp openai
 ```
 
 ---
@@ -111,52 +104,52 @@ python app.py
 
 首次启动会自动下载 **Whisper large-v3 模型**（约 3GB），下载完成后缓存在本地，之后无需重复下载。
 
-下载完成后，浏览器会自动打开，或手动访问：
+下载完成后浏览器会自动打开，或手动访问：
 
 ```
 http://localhost:7860
+```
+
+暗色模式：
+
+```
+http://localhost:7860/?__theme=dark
 ```
 
 ---
 
 ## 六、使用方式
 
-界面分三个功能 Tab：
+### 生成字幕
 
-| Tab | 说明 |
-|-----|------|
-| 🔗 粘贴链接 | 粘贴 TikTok / YouTube / 抖音等视频链接，自动下载并生成字幕 |
-| 📁 上传视频 | 上传本地 `.mp4 .mkv .avi .mov .webm` 视频文件 |
-| 🎵 上传音频 | 上传本地 `.mp3 .wav .m4a .aac .flac` 音频文件 |
+1. 选择输入来源：视频链接 / 上传视频 / 上传音频
+2. 选择识别模型（本地免费 / OpenAI API）
+3. 选择源语言（默认自动检测，也可指定韩文 / 日文 / 英文 / 中文）
+4. 点击「生成字幕」
+5. 生成完成后可下载：
+   - `.srt` 双语字幕文件
+   - `.words.json` 词级时间戳文件（供「合并 SRT」使用）
 
-处理完成后：
-- **左侧**：字幕烧录预览（视频模式）/ 音频播放器（音频模式）
-- **右侧上**：点击下载 `.srt` 字幕文件
-- **右侧下**：所有字幕文本预览
+### 智能断句
 
----
+当 Whisper 自动断句过长时，可用此功能重新断句：
 
-## 七、局域网共享（让同事也能用）
+1. 将生成的韩/日/英文原文粘贴进左侧文本框
+2. 填入 DeepSeek API Key
+3. 调整「每段最多字数」
+4. 点击「AI 断句 + 翻译」，得到双语对照结果
 
-启动后查看自己的 IP：
+### 合并 SRT
 
-```bash
-# Windows
-ipconfig
+将 AI 重新断句后的文本与 Whisper 的精确时间戳合并：
 
-# Mac
-ifconfig | grep "inet "
-```
-
-把 IP 发给同事，让他们在浏览器访问：
-
-```
-http://你的IP:7860
-```
+1. 左侧粘贴「智能断句」的双语结果（原文一行 + 中文一行交替）
+2. 右侧上传「生成字幕」时导出的 `.words.json`
+3. 点击「开始合并」，得到精确时间轴的双语 SRT
 
 ---
 
-## 八、可选：GPU 加速
+## 七、可选：GPU 加速
 
 如果你有 **Nvidia 显卡**，安装 CUDA 版依赖后速度可提升 5–10 倍：
 
@@ -164,17 +157,26 @@ http://你的IP:7860
 pip install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-然后用文本编辑器打开 `app.py`，找到这一行：
+然后修改 `services/transcription.py`：
 
 ```python
-model = WhisperModel("large-v3", device="cpu", compute_type="int8")
+# 将
+model = WhisperModel(DEFAULT_WHISPER_MODEL, device="cpu", compute_type="int8")
+# 改为
+model = WhisperModel(DEFAULT_WHISPER_MODEL, device="cuda", compute_type="float16")
 ```
 
-改为：
+---
 
-```python
-model = WhisperModel("large-v3", device="cuda", compute_type="float16")
+## 八、局域网共享
+
+```bash
+# 查看本机 IP
+ipconfig        # Windows
+ifconfig | grep "inet "   # Mac
 ```
+
+让同事访问：`http://你的IP:7860`
 
 ---
 
@@ -183,6 +185,7 @@ model = WhisperModel("large-v3", device="cuda", compute_type="float16")
 ```bash
 cd korean-subtitle-gen
 git pull
+pip install -r requirements.txt 2>/dev/null || true
 ```
 
 ---
@@ -198,5 +201,8 @@ git pull
 **Q：TikTok / 抖音链接下载失败**
 部分平台有防爬限制，可以先手动下载视频到本地，再用「上传视频」功能。
 
+**Q：识别结果有同音错字（如 임산부 识别成 인삼부）**
+Whisper 对专有名词有时识别偏差，属正常现象。已开启 VAD 过滤和上下文断开来减少串联错误。后续可在代码中为 `transcribe_local` 传入 `initial_prompt` 参数提示关键词。
+
 **Q：翻译结果中地名不准**
-当前使用 Google 翻译，固有名词（如景点名）偶有偏差，属于正常现象。
+当前使用 Google 翻译，固有名词偶有偏差，属于正常现象。
