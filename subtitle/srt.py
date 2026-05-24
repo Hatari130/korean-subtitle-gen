@@ -42,6 +42,47 @@ def parse_plain_segments(text):
     return [{"text": line} for line in lines]
 
 
+CJK_HAN_RE = re.compile(r"[一-鿿]")
+
+
+def is_chinese_line(text):
+    """Heuristic: a line is 'translation' (Chinese) if it has Han chars and
+    no Hangul / kana. Pure CJK Han characters are treated as Chinese."""
+    if not text:
+        return False
+    if re.search(r"[가-힣ᄀ-ᇿ㄰-㆏]", text):
+        return False
+    if re.search(r"[぀-ゟ゠-ヿ]", text):
+        return False
+    return bool(CJK_HAN_RE.search(text))
+
+
+def parse_bilingual_segments(text):
+    """Pair alternating source-language / Chinese-translation lines.
+
+    Returns list of {"source": ..., "translation": ...}. A line is treated
+    as a translation if it looks Chinese (Han chars without Hangul/kana).
+    Anything else is treated as source.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    pairs = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not is_chinese_line(line):
+            translation = ""
+            if i + 1 < len(lines) and is_chinese_line(lines[i + 1]):
+                translation = lines[i + 1]
+                i += 2
+            else:
+                i += 1
+            pairs.append({"source": line, "translation": translation})
+        else:
+            pairs.append({"source": "", "translation": line})
+            i += 1
+    return pairs
+
+
 def time_to_ms(t):
     h, m, s_ms = t.split(":")
     s, ms = s_ms.split(",")

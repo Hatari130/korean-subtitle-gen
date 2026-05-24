@@ -1,3 +1,4 @@
+import json
 import tempfile
 
 import gradio as gr
@@ -10,20 +11,53 @@ from services.translation import safe_translate
 from subtitle.srt import fmt_srt
 
 
-def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL_BACKEND, api_key=""):
-    translator = GoogleTranslator(source="ko", target="zh-CN")
+def _write_words_json(segments):
+    payload = {
+        "segments": [
+            {
+                "start": float(seg.get("start", 0) or 0),
+                "end": float(seg.get("end", 0) or 0),
+                "text": seg.get("text", ""),
+                "words": seg.get("words", []),
+            }
+            for seg in segments
+        ]
+    }
+    f = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".words.json", mode="w", encoding="utf-8"
+    )
+    json.dump(payload, f, ensure_ascii=False, indent=2)
+    f.close()
+    return f.name
 
-    progress(0.3, desc="识别韩文中...")
+
+LANG_LABEL_TO_CODE = {
+    "自动检测": None,
+    "韩文": "ko",
+    "日文": "ja",
+    "英文": "en",
+    "中文": "zh",
+}
+
+
+def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL_BACKEND, api_key="", source_lang_label="自动检测", initial_prompt=""):
+    lang_code = LANG_LABEL_TO_CODE.get(source_lang_label)
+    translator_source = lang_code if lang_code else "auto"
+    translator = GoogleTranslator(source=translator_source, target="zh-CN")
+
+    progress(0.3, desc="识别音频中...")
     try:
         if backend == OPENAI_BACKEND:
-            segments = transcribe_openai(video_path, api_key)
+            segments = transcribe_openai(video_path, api_key, language=lang_code, initial_prompt=initial_prompt)
         else:
-            segments = transcribe_local(video_path)
+            segments = transcribe_local(video_path, language=lang_code, initial_prompt=initial_prompt)
     except Exception as e:
-        return None, None, None, f"识别失败：{e}"
+        return None, None, None, None, f"识别失败：{e}"
 
     if not segments:
-        return None, None, None, "未识别到语音内容"
+        return None, None, None, None, "未识别到语音内容"
+
+    words_json_path = _write_words_json(segments)
 
     progress(0.6, desc=f"翻译 {len(segments)} 段字幕...")
     srt_lines = []
@@ -45,13 +79,15 @@ def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL
     srt_file.close()
 
     preview_text = "\n".join(srt_lines)
+    summary = f"完成！共 {len(segments)} 段字幕\n\n{preview_text}"
 
     if is_audio:
         return (
             gr.Video(visible=False),
             gr.Audio(value=video_path, visible=True),
-            srt_file.name,
-            f"完成！共 {len(segments)} 段字幕\n\n{preview_text}",
+            gr.File(value=srt_file.name, visible=True),
+            gr.File(value=words_json_path, visible=True),
+            summary,
         )
 
     progress(0.92, desc="生成预览视频...")
@@ -59,45 +95,46 @@ def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL
     return (
         gr.Video(value=preview_video, visible=True),
         gr.Audio(visible=False),
-        srt_file.name,
-        f"完成！共 {len(segments)} 段字幕\n\n{preview_text}",
+        gr.File(value=srt_file.name, visible=True),
+        gr.File(value=words_json_path, visible=True),
+        summary,
     )
 
 
-def process_file(video_path, backend, api_key, progress=gr.Progress()):
+def process_file(video_path, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
     if video_path is None:
-        return None, None, None, "请先上传视频文件"
+        return None, None, None, None, "请先上传视频文件"
     progress(0.1, desc="准备识别...")
-    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key)
+    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_audio(audio_path, backend, api_key, progress=gr.Progress()):
+def process_audio(audio_path, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
     if audio_path is None:
-        return None, None, None, "请先上传音频文件"
+        return None, None, None, None, "请先上传音频文件"
     progress(0.1, desc="准备识别...")
-    return transcribe_and_translate(audio_path, progress, is_audio=True, backend=backend, api_key=api_key)
+    return transcribe_and_translate(audio_path, progress, is_audio=True, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_url(url, backend, api_key, progress=gr.Progress()):
+def process_url(url, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
     if not url or not url.strip():
-        return None, None, None, "请输入视频链接"
+        return None, None, None, None, "请输入视频链接"
     progress(0.05, desc="下载视频中...")
     try:
         video_path = download_video(url.strip())
     except Exception as e:
-        return None, None, None, f"下载失败：{e}"
+        return None, None, None, None, f"下载失败：{e}"
     progress(0.2, desc="下载完成，准备识别...")
-    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key)
+    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_auto(url, video_path, audio_path, backend, api_key, progress=gr.Progress()):
+def process_auto(url, video_path, audio_path, backend, api_key, source_lang_label, initial_prompt="", progress=gr.Progress()):
     if url and url.strip():
-        return process_url(url, backend, api_key, progress)
+        return process_url(url, backend, api_key, source_lang_label, initial_prompt, progress)
     if video_path:
-        return process_file(video_path, backend, api_key, progress)
+        return process_file(video_path, backend, api_key, source_lang_label, initial_prompt, progress)
     if audio_path:
-        return process_audio(audio_path, backend, api_key, progress)
-    return None, None, None, "请填写链接或上传视频/音频文件"
+        return process_audio(audio_path, backend, api_key, source_lang_label, initial_prompt, progress)
+    return None, None, None, None, "请填写链接或上传视频/音频文件"
 
 
 def switch_source(source_type):

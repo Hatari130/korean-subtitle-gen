@@ -76,7 +76,7 @@ def _merge_short(lines, min_len, max_len):
 
 def process_segment(text, max_len, api_key):
     if not text or not text.strip():
-        return "", "请输入韩文文本"
+        return "", "请输入需要断句的文本"
     if not api_key or not api_key.strip():
         return "", "请输入 DeepSeek API Key"
 
@@ -85,20 +85,20 @@ def process_segment(text, max_len, api_key):
         base_url="https://api.deepseek.com",
     )
 
-    prompt = f"""你是韩语短视频字幕专家。请将以下韩文按短视频字幕规则断句并翻译为中文。
+    prompt = f"""你是短视频字幕专家。请将以下文本按短视频字幕规则断句并翻译为中文。
 
 要求：
-1. 每段韩文不超过 {int(max_len)} 个字符
-2. 按韩语自然语义断句，保持语义完整，不要切断词组
+1. 每段原文不超过 {int(max_len)} 个字符
+2. 按原文自然语义断句，保持语义完整，不要切断词组
 3. 每段配对应的中文翻译（重新翻译，不要直译）
 4. 输出格式严格如下，每对之间空一行：
 
-韩文原句
+原句
 对应中文
 
 只输出断句结果，不要任何解释或标号。
 
-韩文原文：
+原文：
 {text.strip()}"""
 
     try:
