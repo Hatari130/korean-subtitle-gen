@@ -227,11 +227,27 @@ with gr.Blocks(title="口播音频生成 Studio", css=CSS) as demo:
                             )
                         with gr.Column(scale=1, elem_classes=["studio-card", "action-card"]):
                             gr.HTML('<div class="field-title">声音选择</div>')
+                            voices_state = gr.State(value=list(VOICE_CHOICES))
                             el_tts_voice = gr.Dropdown(
                                 choices=VOICE_CHOICES,
                                 value="8jHHF8rMqMlg8if2mOUe",
                                 show_label=False,
                             )
+                            with gr.Accordion("＋ 添加自定义声音", open=False):
+                                gr.HTML('<div class="field-title">声音名称</div>')
+                                el_voice_name = gr.Textbox(
+                                    show_label=False,
+                                    placeholder="例：My Custom Voice",
+                                    lines=1,
+                                )
+                                gr.HTML('<div class="field-title">Voice ID</div>')
+                                el_voice_id_input = gr.Textbox(
+                                    show_label=False,
+                                    placeholder="粘贴 ElevenLabs Voice ID",
+                                    lines=1,
+                                )
+                                el_add_voice_btn = gr.Button("添加", variant="secondary")
+                                el_add_voice_status = gr.Textbox(show_label=False, lines=1, interactive=False)
                             gr.HTML('<div class="field-title">模型</div>')
                             el_tts_model = gr.Dropdown(
                                 choices=["eleven_v3", "eleven_turbo_v2_5", "eleven_multilingual_v2"],
@@ -292,6 +308,18 @@ with gr.Blocks(title="口播音频生成 Studio", css=CSS) as demo:
                     )
 
     # ── Event bindings ──────────────────────────────
+    def add_custom_voice(name, voice_id, current_voices):
+        name, voice_id = name.strip(), voice_id.strip()
+        if not name or not voice_id:
+            return current_voices, gr.update(), "名称和 Voice ID 不能为空"
+        updated = current_voices + [(name, voice_id)]
+        return updated, gr.update(choices=updated, value=voice_id), f"已添加：{name}"
+
+    el_add_voice_btn.click(
+        fn=add_custom_voice,
+        inputs=[el_voice_name, el_voice_id_input, voices_state],
+        outputs=[voices_state, el_tts_voice, el_add_voice_status],
+    )
     source_type.change(fn=switch_source, inputs=source_type, outputs=[url_group, video_group, audio_group])
     backend_input.change(fn=switch_backend, inputs=backend_input, outputs=api_key_group)
     gen_btn.click(
