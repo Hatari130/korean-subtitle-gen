@@ -15,6 +15,16 @@
 
 ---
 
+## 识别模型对比
+
+| 模式 | 说明 | 适合场景 |
+|------|------|----------|
+| 本地模型 large-v3 | 首次运行自动下载（约 3GB），完全免费，CTranslate2 格式 | 日常使用，无网络依赖 |
+| OpenAI API | 云端识别，按量计费，需填 API Key | 不想下载模型 / 追求速度 |
+| 本地 GGML 模型 | 使用自备的 `.bin` 文件，需安装 `pywhispercpp` | 已有 GGML 模型文件 |
+
+---
+
 ## 效果预览
 
 ```
@@ -95,6 +105,12 @@ cd korean-subtitle-gen
 pip install faster-whisper deep-translator gradio yt-dlp openai elevenlabs
 ```
 
+如需使用 **GGML 模型模式**，额外安装：
+
+```bash
+pip install pywhispercpp
+```
+
 ---
 
 ## 五、启动
@@ -134,7 +150,10 @@ http://localhost:7860/?__theme=dark
 ### 生成字幕
 
 1. 选择输入来源：视频链接 / 上传视频 / 上传音频
-2. 选择识别模型（本地免费 / OpenAI API）
+2. 选择识别模型：
+   - **本地模型 large-v3**：免费，首次自动下载
+   - **OpenAI API**：填入 `sk-...` Key，云端识别
+   - **本地 GGML 模型**：填入本机 `.bin` 文件完整路径（如 `C:\Models\ggml-large-v3.bin`），需提前 `pip install pywhispercpp`
 3. 选择源语言（默认自动检测，也可指定韩文 / 日文 / 英文 / 中文）
 4. 点击「生成字幕」
 5. 生成完成后可下载：
