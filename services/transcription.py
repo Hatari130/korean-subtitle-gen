@@ -1,3 +1,5 @@
+import os
+
 from openai import OpenAI
 from faster_whisper import WhisperModel
 
@@ -119,3 +121,46 @@ def transcribe_openai(media_path, api_key, language=None, initial_prompt=None):
             "words": word_lookup,
         }]
     return [{"start": 0, "end": 0, "text": text, "words": []}]
+
+
+def transcribe_ggml(media_path, model_path, language=None, initial_prompt=None):
+    try:
+        from pywhispercpp.model import Model
+    except ImportError:
+        raise RuntimeError("请先安装 pywhispercpp：pip install pywhispercpp")
+
+    model_path = (model_path or "").strip()
+    if not model_path:
+        raise ValueError("请填写 GGML 模型文件路径")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"找不到模型文件：{model_path}")
+
+    m = Model(model_path)
+
+    kwargs = {"token_timestamps": True}
+    if language:
+        kwargs["language"] = language
+    if initial_prompt and initial_prompt.strip():
+        kwargs["prompt"] = initial_prompt.strip()
+
+    segments = m.transcribe(media_path, **kwargs)
+
+    out = []
+    for seg in segments:
+        words = []
+        for token in (seg.tokens or []):
+            text = (token.text or "").strip()
+            if not text or text.startswith("["):
+                continue
+            words.append({
+                "text": text,
+                "start": token.t0 / 100.0,
+                "end": token.t1 / 100.0,
+            })
+        out.append({
+            "start": seg.t0 / 100.0,
+            "end": seg.t1 / 100.0,
+            "text": seg.text.strip(),
+            "words": words,
+        })
+    return out

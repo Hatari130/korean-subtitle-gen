@@ -1,6 +1,6 @@
 import gradio as gr
 
-from config import LOCAL_BACKEND, OPENAI_BACKEND
+from config import LOCAL_BACKEND, OPENAI_BACKEND, GGML_BACKEND
 from services.elevenlabs_svc import LANG_LABEL_TO_CODE, VOICE_CHOICES, transcribe_elevenlabs, tts_elevenlabs
 from services.workflows import process_auto, switch_backend, switch_source
 from subtitle.align import process_merge_paste_and_upload
@@ -72,7 +72,7 @@ with gr.Blocks(title="口播音频生成 Studio", css=CSS) as demo:
                     </div>
                     """)
                     backend_input = gr.Radio(
-                        choices=[LOCAL_BACKEND, OPENAI_BACKEND],
+                        choices=[LOCAL_BACKEND, OPENAI_BACKEND, GGML_BACKEND],
                         value=LOCAL_BACKEND,
                         show_label=False,
                         elem_classes=["backend-switch"],
@@ -83,6 +83,13 @@ with gr.Blocks(title="口播音频生成 Studio", css=CSS) as demo:
                             show_label=False,
                             placeholder="填写 sk-...",
                             type="password",
+                            lines=1,
+                        )
+                    with gr.Group(visible=False, elem_classes=["api-key-panel"]) as ggml_model_group:
+                        gr.HTML('<div class="field-title">GGML 模型路径</div>')
+                        ggml_model_input = gr.Textbox(
+                            show_label=False,
+                            placeholder="例：C:\\Models\\ggml-large-v3.bin",
                             lines=1,
                         )
                     gr.HTML('<div class="field-title">源语言</div>')
@@ -321,10 +328,10 @@ with gr.Blocks(title="口播音频生成 Studio", css=CSS) as demo:
         outputs=[voices_state, el_tts_voice, el_add_voice_status],
     )
     source_type.change(fn=switch_source, inputs=source_type, outputs=[url_group, video_group, audio_group])
-    backend_input.change(fn=switch_backend, inputs=backend_input, outputs=api_key_group)
+    backend_input.change(fn=switch_backend, inputs=backend_input, outputs=[api_key_group, ggml_model_group])
     gen_btn.click(
         fn=process_auto,
-        inputs=[url_input, file_input, audio_input, backend_input, api_key_input, source_lang_input],
+        inputs=[url_input, file_input, audio_input, backend_input, api_key_input, ggml_model_input, source_lang_input],
         outputs=[video_preview, audio_preview, srt_output, words_output, log_output],
     )
     merge_btn.click(fn=process_merge_paste_and_upload, inputs=[old_srt_text_input, words_json_input],

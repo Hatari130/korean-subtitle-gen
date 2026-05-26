@@ -1,5 +1,6 @@
 LOCAL_BACKEND = "本地模型 large-v3（首次会下载模型）"
 OPENAI_BACKEND = "OpenAI API Key（不下载本地模型）"
+GGML_BACKEND = "本地 GGML 模型（自备 .bin 文件）"
 
 DEFAULT_WHISPER_MODEL = "large-v3"
 DEFAULT_SERVER_NAME = "0.0.0.0"

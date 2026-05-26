@@ -4,9 +4,9 @@ import tempfile
 import gradio as gr
 from deep_translator import GoogleTranslator
 
-from config import LOCAL_BACKEND, OPENAI_BACKEND
+from config import LOCAL_BACKEND, OPENAI_BACKEND, GGML_BACKEND
 from services.media import burn_subtitles, download_video
-from services.transcription import transcribe_local, transcribe_openai
+from services.transcription import transcribe_local, transcribe_openai, transcribe_ggml
 from services.translation import safe_translate
 from subtitle.srt import fmt_srt
 
@@ -40,7 +40,7 @@ LANG_LABEL_TO_CODE = {
 }
 
 
-def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL_BACKEND, api_key="", source_lang_label="自动检测", initial_prompt=""):
+def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL_BACKEND, api_key="", ggml_model_path="", source_lang_label="自动检测", initial_prompt=""):
     lang_code = LANG_LABEL_TO_CODE.get(source_lang_label)
     translator_source = lang_code if lang_code else "auto"
     translator = GoogleTranslator(source=translator_source, target="zh-CN")
@@ -49,6 +49,8 @@ def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL
     try:
         if backend == OPENAI_BACKEND:
             segments = transcribe_openai(video_path, api_key, language=lang_code, initial_prompt=initial_prompt)
+        elif backend == GGML_BACKEND:
+            segments = transcribe_ggml(video_path, ggml_model_path, language=lang_code, initial_prompt=initial_prompt)
         else:
             segments = transcribe_local(video_path, language=lang_code, initial_prompt=initial_prompt)
     except Exception as e:
@@ -101,21 +103,21 @@ def transcribe_and_translate(video_path, progress, is_audio=False, backend=LOCAL
     )
 
 
-def process_file(video_path, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
+def process_file(video_path, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress=gr.Progress()):
     if video_path is None:
         return None, None, None, None, "请先上传视频文件"
     progress(0.1, desc="准备识别...")
-    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
+    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, ggml_model_path=ggml_model_path, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_audio(audio_path, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
+def process_audio(audio_path, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress=gr.Progress()):
     if audio_path is None:
         return None, None, None, None, "请先上传音频文件"
     progress(0.1, desc="准备识别...")
-    return transcribe_and_translate(audio_path, progress, is_audio=True, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
+    return transcribe_and_translate(audio_path, progress, is_audio=True, backend=backend, api_key=api_key, ggml_model_path=ggml_model_path, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_url(url, backend, api_key, source_lang_label, initial_prompt, progress=gr.Progress()):
+def process_url(url, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress=gr.Progress()):
     if not url or not url.strip():
         return None, None, None, None, "请输入视频链接"
     progress(0.05, desc="下载视频中...")
@@ -124,16 +126,16 @@ def process_url(url, backend, api_key, source_lang_label, initial_prompt, progre
     except Exception as e:
         return None, None, None, None, f"下载失败：{e}"
     progress(0.2, desc="下载完成，准备识别...")
-    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
+    return transcribe_and_translate(video_path, progress, is_audio=False, backend=backend, api_key=api_key, ggml_model_path=ggml_model_path, source_lang_label=source_lang_label, initial_prompt=initial_prompt)
 
 
-def process_auto(url, video_path, audio_path, backend, api_key, source_lang_label, initial_prompt="", progress=gr.Progress()):
+def process_auto(url, video_path, audio_path, backend, api_key, ggml_model_path, source_lang_label, initial_prompt="", progress=gr.Progress()):
     if url and url.strip():
-        return process_url(url, backend, api_key, source_lang_label, initial_prompt, progress)
+        return process_url(url, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress)
     if video_path:
-        return process_file(video_path, backend, api_key, source_lang_label, initial_prompt, progress)
+        return process_file(video_path, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress)
     if audio_path:
-        return process_audio(audio_path, backend, api_key, source_lang_label, initial_prompt, progress)
+        return process_audio(audio_path, backend, api_key, ggml_model_path, source_lang_label, initial_prompt, progress)
     return None, None, None, None, "请填写链接或上传视频/音频文件"
 
 
@@ -146,4 +148,7 @@ def switch_source(source_type):
 
 
 def switch_backend(backend):
-    return gr.update(visible=backend == OPENAI_BACKEND)
+    return (
+        gr.update(visible=backend == OPENAI_BACKEND),
+        gr.update(visible=backend == GGML_BACKEND),
+    )
